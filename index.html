@@ -30,7 +30,7 @@ tr.r{cursor:pointer}tr.r:hover td{background:rgba(47,111,219,.07)}
 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h1>Прогресс стажёров</h1><span class="mut" id="upd"></span></div><button class="g" id="out">Выйти</button></div>
 <div class="top"><input id="q" placeholder="Поиск по имени"><button id="rf">Обновить</button><button class="g" id="csv">Скачать CSV</button></div>
 <div class="st card"><div><span class="mut">Всего зашло</span><b id="s1">0</b></div><div><span class="mut">Активны за 24 ч</span><b id="s2">0</b></div><div><span class="mut">Прошли КЦ на 100%</span><b id="s3">0</b></div><div><span class="mut">Прошли ВЗ на 100%</span><b id="s4">0</b></div></div>
-<div class="card tw"><table><thead><tr><th>Имя</th><th>Первый вход</th><th>Последний вход</th><th>КЦ</th><th>ВЗ</th></tr></thead><tbody id="tb"></tbody></table></div>
+<div class="card tw"><table><thead><tr><th>Имя / Email</th><th>Первый вход</th><th>Последний вход</th><th>Последняя отметка</th><th>КЦ</th><th>ВЗ</th></tr></thead><tbody id="tb"></tbody></table></div>
 <p class="mut">Нажмите на строку, чтобы увидеть, какие блоки пройдены.</p>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -49,28 +49,28 @@ async function start(){
  show(true);load()}
 async function load(){
  $("upd").textContent="Загрузка…";
- try{var r=await Promise.all([all("profiles","*"),all("progress","user_id,roadmap,block_id",function(q){return q.eq("done",true)})])}catch(e){$("upd").textContent="Ошибка: "+e.message;return}
- var m={};r[1].forEach(function(x){var u=m[x.user_id]=m[x.user_id]||{kc:{},vz:{}};if(u[x.roadmap])u[x.roadmap][x.block_id]=1});
- rows=r[0].map(function(p){var d=m[p.user_id]||{kc:{},vz:{}};return{id:p.user_id,name:p.full_name||"(без имени)",first:p.first_seen,last:p.last_seen,kc:d.kc,vz:d.vz}})
+ try{var r=await Promise.all([all("profiles","*"),all("progress","user_id,roadmap,block_id,updated_at",function(q){return q.eq("done",true)})])}catch(e){$("upd").textContent="Ошибка: "+e.message;return}
+ var m={};r[1].forEach(function(x){var u=m[x.user_id]=m[x.user_id]||{kc:{},vz:{}};if(u[x.roadmap]){u[x.roadmap][x.block_id]=x.updated_at;if(!u.lm||x.updated_at>u.lm)u.lm=x.updated_at}});
+ rows=r[0].map(function(p){var d=m[p.user_id]||{kc:{},vz:{}};return{id:p.user_id,name:p.full_name||"(без имени)",email:p.email,mark:d.lm,first:p.first_seen,last:p.last_seen,kc:d.kc,vz:d.vz}})
   .sort(function(a,b){return new Date(b.last)-new Date(a.last)});
  $("upd").textContent="Обновлено "+fmt(new Date());render()}
 function cnt(o){return Object.keys(o).length}
 function bar(o,rm){var n=cnt(o),p=Math.round(n/TOT[rm]*100);return'<span class="pb"><i style="width:'+p+'%"></i></span>'+n+"/"+TOT[rm]+" ("+p+"%)"}
 function detail(r){var h='<div class="dg">';for(var rm in BLOCKS){BLOCKS[rm].forEach(function(d,i){
- h+='<div><h4>'+(rm==="kc"?"КЦ":"ВЗ")+" · "+d.n+"</h4>"+d.b.map(function(b,j){var ok=r[rm][i+"-"+j];return'<div class="'+(ok?"y":"n")+'">'+(ok?"✓ ":"○ ")+esc(b[0])+"</div>"}).join("")+"</div>"})}return h+"</div>"}
+ h+='<div><h4>'+(rm==="kc"?"КЦ":"ВЗ")+" · "+d.n+"</h4>"+d.b.map(function(b,j){var ok=r[rm][i+"-"+j];return'<div class="'+(ok?"y":"n")+'">'+(ok?"✓ ":"○ ")+esc(b[0])+(ok?' <span class="mut">'+fmt(ok)+"</span>":"")+"</div>"}).join("")+"</div>"})}return h+"</div>"}
 function render(){
  var q=$("q").value.toLowerCase(),list=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>-1});
  $("s1").textContent=rows.length;$("s2").textContent=rows.filter(function(r){return Date.now()-new Date(r.last)<864e5}).length;
  $("s3").textContent=rows.filter(function(r){return cnt(r.kc)>=TOT.kc}).length;$("s4").textContent=rows.filter(function(r){return cnt(r.vz)>=TOT.vz}).length;
- $("tb").innerHTML=list.map(function(r,i){return'<tr class="r" data-i="'+i+'"><td><b>'+esc(r.name)+"</b></td><td>"+fmt(r.first)+"</td><td>"+fmt(r.last)+"</td><td>"+bar(r.kc,"kc")+"</td><td>"+bar(r.vz,"vz")+"</td></tr>"}).join("")||'<tr><td colspan="5" class="mut">Пока никого нет</td></tr>';
+ $("tb").innerHTML=list.map(function(r,i){return'<tr class="r" data-i="'+i+'"><td><b>'+esc(r.name)+'</b><div class="mut">'+esc(r.email||"")+"</div></td><td>"+fmt(r.first)+"</td><td>"+fmt(r.last)+"</td><td>"+fmt(r.mark)+"</td><td>"+bar(r.kc,"kc")+"</td><td>"+bar(r.vz,"vz")+"</td></tr>"}).join("")||'<tr><td colspan="6" class="mut">Пока никого нет</td></tr>';
  $("tb").onclick=function(e){var tr=e.target.closest("tr.r");if(!tr)return;var nx=tr.nextSibling;
   if(nx&&nx.className==="det"){nx.remove();return}
-  var d=document.createElement("tr");d.className="det";d.innerHTML='<td colspan="5">'+detail(list[tr.dataset.i])+"</td>";tr.after(d)}}
+  var d=document.createElement("tr");d.className="det";d.innerHTML='<td colspan="6">'+detail(list[tr.dataset.i])+"</td>";tr.after(d)}}
 $("q").oninput=render;$("rf").onclick=load;
-$("csv").onclick=function(){var l=["Имя;Первый вход;Последний вход;КЦ изучено;КЦ всего;ВЗ изучено;ВЗ всего"];
- rows.forEach(function(r){l.push([r.name,fmt(r.first),fmt(r.last),cnt(r.kc),TOT.kc,cnt(r.vz),TOT.vz].join(";"))});
+$("csv").onclick=function(){var l=["Имя;Email;Первый вход;Последний вход;КЦ изучено;КЦ всего;ВЗ изучено;ВЗ всего"];
+ rows.forEach(function(r){l.push([r.name,r.email||"",fmt(r.first),fmt(r.last),cnt(r.kc),TOT.kc,cnt(r.vz),TOT.vz].join(";"))});
  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+l.join("\n")],{type:"text/csv"}));a.download="progress.csv";a.click()};
-$("go").onclick=async function(){var r=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(r.error)return show(false,r.error.message);start()};
+$("go").onclick=async function(){var r=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(r.error)return show(false,"Неверный email или пароль");start()};
 $("pw").onkeydown=function(e){if(e.key==="Enter")$("go").click()};
 $("out").onclick=async function(){await sb.auth.signOut();show(false)};
 start();
