@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8"><title>Админка стажировки</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#eef1f4;--ink:#14263a;--mut:#5b6b7b;--card:#fff;--line:#d3dbe2;--ac:#2f6fdb;--ok:#0e8a7d}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1822;--ink:#e8eef4;--mut:#93a3b3;--card:#182533;--line:#33455a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+.w{max-width:1100px;margin:0 auto;padding:24px}
+h1{font-size:24px;margin:0 0 4px}.mut{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+input,button{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}button.g{background:transparent;color:var(--ink);border-color:var(--line)}
+#login{max-width:340px;margin:12vh auto;display:grid;gap:10px}
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}.top input{flex:1;min-width:200px}
+.st{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}.st div{flex:1;min-width:140px}.st b{font-size:26px;display:block}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:640px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}th{font-size:12px;color:var(--mut);text-transform:uppercase}
+tr.r{cursor:pointer}tr.r:hover td{background:rgba(47,111,219,.07)}
+.pb{display:inline-block;width:80px;height:8px;border-radius:4px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:6px}.pb i{display:block;height:100%;background:var(--ok)}
+.det td{background:rgba(127,127,127,.06)}.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.dg h4{margin:0 0 4px;font-size:13px}.dg div div{font-size:13px;padding:1px 0}.y{color:var(--ok)}.n{color:var(--mut)}
+#err{color:#cf3f4f;font-size:13px;min-height:18px}
+</style></head>
+<body>
+<div id="login" class="card"><h1>Админка стажировки</h1><span class="mut">Вход для наставников</span>
+<input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Пароль" autocomplete="current-password">
+<button id="go">Войти</button><div id="err"></div></div>
+<div id="app" class="w" hidden>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><h1>Прогресс стажёров</h1><span class="mut" id="upd"></span></div><button class="g" id="out">Выйти</button></div>
+<div class="top"><input id="q" placeholder="Поиск по имени"><button id="rf">Обновить</button><button class="g" id="csv">Скачать CSV</button></div>
+<div class="st card"><div><span class="mut">Всего зашло</span><b id="s1">0</b></div><div><span class="mut">Активны за 24 ч</span><b id="s2">0</b></div><div><span class="mut">Прошли КЦ на 100%</span><b id="s3">0</b></div><div><span class="mut">Прошли ВЗ на 100%</span><b id="s4">0</b></div></div>
+<div class="card tw"><table><thead><tr><th>Имя</th><th>Первый вход</th><th>Последний вход</th><th>КЦ</th><th>ВЗ</th></tr></thead><tbody id="tb"></tbody></table></div>
+<p class="mut">Нажмите на строку, чтобы увидеть, какие блоки пройдены.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script><script src="blocks.js"></script>
+<script>
+var C=window.APP_CONFIG,sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY),$=function(i){return document.getElementById(i)};
+var TOT={},rows=[];for(var k in BLOCKS){TOT[k]=BLOCKS[k].reduce(function(a,d){return a+d.b.length},0)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(m){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]})}
+function fmt(t){return t?new Date(t).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}
+function all(t,cols,f){var out=[];function pg(from){var q=sb.from(t).select(cols);if(f)q=f(q);return q.range(from,from+999).then(function(r){if(r.error)throw r.error;out=out.concat(r.data);return r.data.length===1000?pg(from+1000):out})}return pg(0)}
+function show(ok,msg){$("login").hidden=ok;$("app").hidden=!ok;$("err").textContent=msg||""}
+async function start(){
+ var s=(await sb.auth.getSession()).data.session;if(!s)return show(false);
+ var a=await sb.from("admins").select("user_id").maybeSingle();
+ if(!a.data){await sb.auth.signOut();return show(false,"Нет прав администратора")}
+ show(true);load()}
+async function load(){
+ $("upd").textContent="Загрузка…";
+ try{var r=await Promise.all([all("profiles","*"),all("progress","user_id,roadmap,block_id",function(q){return q.eq("done",true)})])}catch(e){$("upd").textContent="Ошибка: "+e.message;return}
+ var m={};r[1].forEach(function(x){var u=m[x.user_id]=m[x.user_id]||{kc:{},vz:{}};if(u[x.roadmap])u[x.roadmap][x.block_id]=1});
+ rows=r[0].map(function(p){var d=m[p.user_id]||{kc:{},vz:{}};return{id:p.user_id,name:p.full_name||"(без имени)",first:p.first_seen,last:p.last_seen,kc:d.kc,vz:d.vz}})
+  .sort(function(a,b){return new Date(b.last)-new Date(a.last)});
+ $("upd").textContent="Обновлено "+fmt(new Date());render()}
+function cnt(o){return Object.keys(o).length}
+function bar(o,rm){var n=cnt(o),p=Math.round(n/TOT[rm]*100);return'<span class="pb"><i style="width:'+p+'%"></i></span>'+n+"/"+TOT[rm]+" ("+p+"%)"}
+function detail(r){var h='<div class="dg">';for(var rm in BLOCKS){BLOCKS[rm].forEach(function(d,i){
+ h+='<div><h4>'+(rm==="kc"?"КЦ":"ВЗ")+" · "+d.n+"</h4>"+d.b.map(function(b,j){var ok=r[rm][i+"-"+j];return'<div class="'+(ok?"y":"n")+'">'+(ok?"✓ ":"○ ")+esc(b[0])+"</div>"}).join("")+"</div>"})}return h+"</div>"}
+function render(){
+ var q=$("q").value.toLowerCase(),list=rows.filter(function(r){return r.name.toLowerCase().indexOf(q)>-1});
+ $("s1").textContent=rows.length;$("s2").textContent=rows.filter(function(r){return Date.now()-new Date(r.last)<864e5}).length;
+ $("s3").textContent=rows.filter(function(r){return cnt(r.kc)>=TOT.kc}).length;$("s4").textContent=rows.filter(function(r){return cnt(r.vz)>=TOT.vz}).length;
+ $("tb").innerHTML=list.map(function(r,i){return'<tr class="r" data-i="'+i+'"><td><b>'+esc(r.name)+"</b></td><td>"+fmt(r.first)+"</td><td>"+fmt(r.last)+"</td><td>"+bar(r.kc,"kc")+"</td><td>"+bar(r.vz,"vz")+"</td></tr>"}).join("")||'<tr><td colspan="5" class="mut">Пока никого нет</td></tr>';
+ $("tb").onclick=function(e){var tr=e.target.closest("tr.r");if(!tr)return;var nx=tr.nextSibling;
+  if(nx&&nx.className==="det"){nx.remove();return}
+  var d=document.createElement("tr");d.className="det";d.innerHTML='<td colspan="5">'+detail(list[tr.dataset.i])+"</td>";tr.after(d)}}
+$("q").oninput=render;$("rf").onclick=load;
+$("csv").onclick=function(){var l=["Имя;Первый вход;Последний вход;КЦ изучено;КЦ всего;ВЗ изучено;ВЗ всего"];
+ rows.forEach(function(r){l.push([r.name,fmt(r.first),fmt(r.last),cnt(r.kc),TOT.kc,cnt(r.vz),TOT.vz].join(";"))});
+ var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+l.join("\n")],{type:"text/csv"}));a.download="progress.csv";a.click()};
+$("go").onclick=async function(){var r=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(r.error)return show(false,"Неверный email или пароль");start()};
+$("pw").onkeydown=function(e){if(e.key==="Enter")$("go").click()};
+$("out").onclick=async function(){await sb.auth.signOut();show(false)};
+start();
+</script></body></html>
