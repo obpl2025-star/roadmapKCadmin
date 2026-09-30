@@ -70,7 +70,7 @@ $("q").oninput=render;$("rf").onclick=load;
 $("csv").onclick=function(){var l=["Имя;Первый вход;Последний вход;КЦ изучено;КЦ всего;ВЗ изучено;ВЗ всего"];
  rows.forEach(function(r){l.push([r.name,fmt(r.first),fmt(r.last),cnt(r.kc),TOT.kc,cnt(r.vz),TOT.vz].join(";"))});
  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+l.join("\n")],{type:"text/csv"}));a.download="progress.csv";a.click()};
-$("go").onclick=async function(){var r=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(r.error)return show(false,"Неверный email или пароль");start()};
+$("go").onclick=async function(){var r=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(r.error)return show(false,r.error.message);start()};
 $("pw").onkeydown=function(e){if(e.key==="Enter")$("go").click()};
 $("out").onclick=async function(){await sb.auth.signOut();show(false)};
 start();
